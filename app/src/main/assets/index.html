@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Arrows: Echo — 25-Level Interactive Prototype</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; overscroll-behavior: none; }
+    canvas { touch-action: none; }
+    @keyframes popIn {
+      0% { transform: scale(0.92); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop { animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col items-center justify-between select-none">
+
+  <!-- Top Header -->
+  <header class="w-full max-w-xl px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+    <button id="btnLevels" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 shadow-sm hover:bg-slate-100 active:scale-95 transition text-left">
+      <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0"></span>
+      <div>
+        <div class="text-xs font-semibold text-slate-400 leading-none" id="chapterLabel">CH 1 · PURE FLOW</div>
+        <div class="text-sm font-bold text-slate-800 leading-tight" id="levelTitle">Lvl 1 · First Glance</div>
+      </div>
+      <svg class="w-4 h-4 text-slate-400 ml-1" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+
+    <div class="flex items-center gap-1.5">
+      <!-- Hearts or Zen -->
+      <div id="heartsBox" class="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm" title="Lives remaining"></div>
+
+      <!-- Zen Toggle -->
+      <button id="btnZen" class="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm text-xs font-semibold text-slate-600 hover:bg-slate-100 active:scale-95 transition" title="Toggle Zen Mode (no heart loss)">
+        Zen: Off
+      </button>
+
+      <!-- Sound Toggle -->
+      <button id="btnMute" class="p-2 rounded-xl bg-white border border-slate-200 shadow-sm text-slate-600 hover:bg-slate-100 active:scale-95 transition" title="Toggle Sound">
+        <svg id="iconSoundOn" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14"/></svg>
+        <svg id="iconSoundOff" class="w-4 h-4 hidden text-rose-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H2v6h4l5 4V5z"/><path stroke-linecap="round" stroke-linejoin="round" d="M23 9l-6 6M17 9l6 6"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Sub-bar: Timer, Combo, Difficulty, Best -->
+  <div class="w-full max-w-xl px-4 flex items-center justify-between text-xs text-slate-500">
+    <div class="flex items-center gap-2">
+      <span id="diffBadge" class="px-2 py-0.5 rounded-md font-semibold bg-emerald-100 text-emerald-700">Chill</span>
+      <span id="timerText" class="font-mono font-medium text-slate-600">00:00</span>
+      <span id="bestText" class="text-slate-400 hidden sm:inline">Best: --</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="comboBadge" class="hidden px-2 py-0.5 rounded-md font-bold bg-indigo-100 text-indigo-700">Combo x2</span>
+      <span id="remainText" class="font-medium text-slate-600">3 left</span>
+    </div>
+  </div>
+
+  <!-- Main Canvas Stage -->
+  <main class="flex-1 w-full max-w-xl px-4 py-2 flex flex-col items-center justify-center relative">
+    <div id="boardWrap" class="w-full aspect-square max-h-[62vh] bg-white rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden flex items-center justify-center">
+      <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+
+      <!-- Floating Hold-to-Trace Status Pill -->
+      <div id="tracePill" class="pointer-events-none opacity-0 transition-opacity duration-150 absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-semibold shadow-sm bg-slate-900/90 text-white whitespace-nowrap">
+        Hold to preview · Slide off to cancel
+      </div>
+    </div>
+
+    <!-- Mechanic Tip / Feedback Bar -->
+    <div id="tipBar" class="w-full mt-2.5 px-3.5 py-2 rounded-xl bg-slate-100/90 border border-slate-200/80 text-xs text-slate-600 flex items-center gap-2 min-h-[38px]">
+      <span class="text-indigo-500 font-bold shrink-0">TIP</span>
+      <span id="tipText" class="leading-snug">Press &amp; hold any arrow to preview its path. Release to fire, or slide away to cancel.</span>
+    </div>
+  </main>
+
+  <!-- Bottom Action Bar -->
+  <footer class="w-full max-w-xl px-4 pb-4 pt-1 flex items-center justify-between gap-2">
+    <button id="btnPrev" class="px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition disabled:opacity-40">
+      ← Prev
+    </button>
+
+    <div class="flex items-center gap-2">
+      <button id="btnHint" class="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition text-sm font-semibold">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        Hint
+      </button>
+
+      <button id="btnGrid" class="px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-sm font-bold text-indigo-600 hover:bg-slate-100 active:scale-95 transition" title="Toggle Grid Lines">
+        #
+      </button>
+
+      <button id="btnRestart" class="p-2.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-600 hover:bg-slate-100 active:scale-95 transition" title="Restart Level">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </button>
+    </div>
+
+    <button id="btnNext" class="px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-sm font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition disabled:opacity-40">
+      Next →
+    </button>
+  </footer>
+
+  <!-- Level Complete / Game Over Modal -->
+  <div id="overlayModal" class="hidden fixed inset-0 z-40 bg-slate-900/45 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-xl border border-slate-100 text-center animate-pop">
+      <div id="modalIcon" class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold">✓</div>
+      <h2 id="modalTitle" class="text-xl font-extrabold text-slate-900">Board Cleared!</h2>
+      <p id="modalSub" class="text-sm text-slate-500 mt-1 mb-5">Clean solve in 00:08 with 0 mistakes.</p>
+      <div class="flex gap-2.5 justify-center">
+        <button id="btnModalRetry" class="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition">Replay</button>
+        <button id="btnModalNext" class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition">Next Level →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 25-Level Chapter Selector Modal -->
+  <div id="levelsModal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-100 animate-pop">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-extrabold text-slate-900">500-Level Progression Plan</h3>
+          <p class="text-xs text-slate-500">5 Chapters · Jump to any level to test its hook</p>
+        </div>
+        <button id="btnCloseLevels" class="p-2 rounded-xl hover:bg-slate-100 text-slate-500 font-bold text-sm">✕</button>
+      </div>
+      <div id="levelsList" class="p-4 overflow-y-auto space-y-4"></div>
+    </div>
+  </div>
+
+<script>
+let LEVELS = [];
+let levelsClearedSinceAd = 0;
+
+window.onAdRewarded = function(type) {
+  if (type === 'hint') {
+    const validId = findValidHintMove();
+    state.hintArrowId = validId;
+    if (validId !== null) playTone(659.25, 0.14, 'sine', 0.1);
+  } else if (type === 'heart') {
+    state.hearts = 3;
+    state.gameOver = false;
+    overlayModal.classList.add('hidden');
+    updateUI();
+  }
+};
+
+const CHAPTERS = {
+  1: { name: 'Pure Flow', desc: 'Sightlines & bent paths' },
+  2: { name: 'Color Gates', desc: 'Key arrows unlock barriers' },
+  3: { name: 'Ricochet Bumpers', desc: '45° mirrors bend trajectories' },
+  4: { name: 'Cracked Ice', desc: 'Tap to shatter 1-hit ice safely' },
+  5: { name: 'Master Mix', desc: 'All mechanics combined' }
+};
+
+const PALETTE = {
+  indigo:  { stroke: '#4f46e5', glow: 'rgba(79,70,229,0.28)' },
+  emerald: { stroke: '#059669', glow: 'rgba(5,150,105,0.28)' },
+  amber:   { stroke: '#d97706', glow: 'rgba(217,119,6,0.28)' },
+  rose:    { stroke: '#e11d48', glow: 'rgba(225,29,72,0.28)' },
+  cyan:    { stroke: '#0891b2', glow: 'rgba(8,145,178,0.28)' },
+  violet:  { stroke: '#7c3aed', glow: 'rgba(124,58,237,0.28)' }
+};
+
+const DIRS = { U: [-1, 0], D: [1, 0], L: [0, -1], R: [0, 1] };
+const REFLECT_SLASH = { R: 'U', U: 'R', L: 'D', D: 'L' };
+const REFLECT_BACK  = { R: 'D', D: 'R', L: 'U', U: 'L' };
+
+// Web Audio Pentatonic Synth
+let audioCtx = null;
+let isMuted = false;
+const PENTATONIC = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.50, 1174.66, 1318.51];
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (Ctx) audioCtx = new Ctx();
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
+  }
+}
+
+function playTone(freq, duration = 0.18, type = 'sine', vol = 0.14) {
+  if (isMuted) return;
+  ensureAudio();
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, now);
+  gain.gain.setValueAtTime(0.001, now);
+  gain.gain.exponentialRampToValueAtTime(vol, now + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + duration + 0.02);
+}
+
+function playClearSound(combo) {
+  const note = PENTATONIC[Math.min(combo, PENTATONIC.length - 1)];
+  playTone(note, 0.24, 'triangle', 0.16);
+}
+function playIceSound() {
+  playTone(1200, 0.08, 'square', 0.07);
+  setTimeout(() => playTone(1650, 0.12, 'triangle', 0.09), 40);
+}
+function playUnlockSound() {
+  playTone(587.33, 0.12, 'sine', 0.12);
+  setTimeout(() => playTone(880.00, 0.22, 'sine', 0.14), 70);
+}
+function playErrorSound() {
+  playTone(170, 0.18, 'sawtooth', 0.09);
+}
+function playWinSound() {
+  [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+    setTimeout(() => playTone(f, 0.26, 'triangle', 0.13), i * 80);
+  });
+}
+
+// App State
+const state = {
+  levelIdx: 0,
+  arrows: [],
+  gates: [],
+  bumpers: [],
+  ice: [],
+  hearts: 3,
+  zenMode: false,
+  showGrid: true,
+  combo: 0,
+  mistakes: 0,
+  elapsedSec: 0,
+  timerId: null,
+  activeArrowId: null,
+  pointerInsideArrow: false,
+  hintArrowId: null,
+  animations: [], // { type: 'fly'|'shake'|'particle', ... }
+  completed: {},
+  bestTimes: {},
+  gameOver: false
+};
+
+try {
+  const saved = JSON.parse(localStorage.getItem('arrows_echo_save') || '{}');
+  if (saved.completed) state.completed = saved.completed;
+  if (saved.bestTimes) state.bestTimes = saved.bestTimes;
+} catch (e) {}
+
+function saveProgress() {
+  try {
+    localStorage.setItem('arrows_echo_save', JSON.stringify({
+      completed: state.completed,
+      bestTimes: state.bestTimes
+    }));
+  } catch (e) {}
+}
+
+// DOM Refs
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const boardWrap = document.getElementById('boardWrap');
+const chapterLabel = document.getElementById('chapterLabel');
+const levelTitle = document.getElementById('levelTitle');
+const heartsBox = document.getElementById('heartsBox');
+const btnZen = document.getElementById('btnZen');
+const btnMute = document.getElementById('btnMute');
+const iconSoundOn = document.getElementById('iconSoundOn');
+const iconSoundOff = document.getElementById('iconSoundOff');
+const diffBadge = document.getElementById('diffBadge');
+const timerText = document.getElementById('timerText');
+const bestText = document.getElementById('bestText');
+const comboBadge = document.getElementById('comboBadge');
+const remainText = document.getElementById('remainText');
+const tracePill = document.getElementById('tracePill');
+const tipText = document.getElementById('tipText');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnHint = document.getElementById('btnHint');
+const btnGrid = document.getElementById('btnGrid');
+const btnRestart = document.getElementById('btnRestart');
+const overlayModal = document.getElementById('overlayModal');
+const modalIcon = document.getElementById('modalIcon');
+const modalTitle = document.getElementById('modalTitle');
+const modalSub = document.getElementById('modalSub');
+const btnModalRetry = document.getElementById('btnModalRetry');
+const btnModalNext = document.getElementById('btnModalNext');
+const levelsModal = document.getElementById('levelsModal');
+const levelsList = document.getElementById('levelsList');
+const btnLevels = document.getElementById('btnLevels');
+const btnCloseLevels = document.getElementById('btnCloseLevels');
+
+let layout = { size: 400, pad: 34, cell: 50, rows: 5, cols: 5 };
+
+function resizeCanvas() {
+  const rect = boardWrap.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.floor(rect.width * dpr);
+  canvas.height = Math.floor(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const lvl = LEVELS[state.levelIdx];
+  const minDim = Math.min(rect.width, rect.height);
+  const pad = Math.max(24, minDim * 0.085);
+  const gridMax = Math.max(lvl.rows, lvl.cols);
+  const cell = (minDim - pad * 2) / gridMax;
+  const offsetX = (rect.width - cell * lvl.cols) / 2;
+  const offsetY = (rect.height - cell * lvl.rows) / 2;
+  layout = { w: rect.width, h: rect.height, pad, cell, offsetX, offsetY, rows: lvl.rows, cols: lvl.cols };
+}
+
+function cellCenter(r, c) {
+  return {
+    x: layout.offsetX + (c + 0.5) * layout.cell,
+    y: layout.offsetY + (r + 0.5) * layout.cell
+  };
+}
+
+function loadLevel(idx) {
+  state.levelIdx = Math.max(0, Math.min(LEVELS.length - 1, idx));
+  const lvl = LEVELS[state.levelIdx];
+  state.arrows = lvl.arrows.map((a, i) => ({
+    id: i,
+    cells: a.cells.map(p => [...p]),
+    dir: a.dir,
+    color: a.color || 'indigo',
+    keyFor: a.keyFor || null,
+    shakeUntil: 0
+  }));
+  state.gates = (lvl.gates || []).map(g => ({ ...g }));
+  state.bumpers = (lvl.bumpers || []).map(b => ({ ...b }));
+  state.ice = (lvl.ice || []).map(ic => ({ ...ic }));
+  state.hearts = 3;
+  state.combo = 0;
+  state.mistakes = 0;
+  state.elapsedSec = 0;
+  state.activeArrowId = null;
+  state.pointerInsideArrow = false;
+  state.hintArrowId = null;
+  state.animations = [];
+  state.gameOver = false;
+
+  if (state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(() => {
+    if (!state.gameOver) {
+      state.elapsedSec++;
+      timerText.textContent = formatTime(state.elapsedSec);
+    }
+  }, 1000);
+
+  overlayModal.classList.add('hidden');
+  resizeCanvas();
+  updateUI();
+}
+
+function formatTime(sec) {
+  const m = String(Math.floor(sec / 60)).padStart(2, '0');
+  const s = String(sec % 60).padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function updateUI() {
+  const lvl = LEVELS[state.levelIdx];
+  const ch = CHAPTERS[lvl.chapter];
+  chapterLabel.textContent = `CH ${lvl.chapter} · ${ch.name.toUpperCase()}`;
+  levelTitle.textContent = `Lvl ${lvl.id} / ${LEVELS.length} · ${lvl.title}`;
+  tipText.textContent = lvl.hint;
+  timerText.textContent = formatTime(state.elapsedSec);
+
+  const best = state.bestTimes[lvl.id];
+  bestText.textContent = best != null ? `Best: ${formatTime(best)}` : 'Best: --';
+
+  // Difficulty badge
+  const diffColors = {
+    Chill: 'bg-emerald-100 text-emerald-700',
+    Normal: 'bg-sky-100 text-sky-700',
+    Hard: 'bg-amber-100 text-amber-700',
+    Master: 'bg-rose-100 text-rose-700'
+  };
+  diffBadge.className = `px-2 py-0.5 rounded-md font-semibold ${diffColors[lvl.difficulty] || 'bg-slate-100 text-slate-700'}`;
+  diffBadge.textContent = lvl.difficulty;
+
+  // Hearts
+  if (state.zenMode) {
+    heartsBox.innerHTML = `<span class="text-xs font-bold text-emerald-600 px-1">∞ Zen</span>`;
+  } else {
+    let html = '';
+    for (let i = 0; i < 3; i++) {
+      html += `<span class="text-sm leading-none ${i < state.hearts ? 'text-rose-500' : 'text-slate-200'}">♥</span>`;
+    }
+    heartsBox.innerHTML = html;
+  }
+
+  // Combo & remaining
+  if (state.combo >= 2) {
+    comboBadge.textContent = `Combo x${state.combo}`;
+    comboBadge.classList.remove('hidden');
+  } else {
+    comboBadge.classList.add('hidden');
+  }
+  remainText.textContent = `${state.arrows.length} left`;
+
+  btnPrev.disabled = state.levelIdx === 0;
+  btnNext.disabled = state.levelIdx === LEVELS.length - 1;
+  btnGrid.className = state.showGrid
+    ? 'px-3.5 py-2.5 rounded-2xl bg-indigo-50 border border-indigo-200 shadow-sm text-sm font-bold text-indigo-600 hover:bg-indigo-100 active:scale-95 transition'
+    : 'px-3.5 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-sm font-bold text-slate-400 hover:bg-slate-100 active:scale-95 transition';
+}
+
+// Raycast engine matching Python verifier
+function raycastArrow(arrow, arrowsList = state.arrows, gatesList = state.gates, iceList = state.ice) {
+  const lvl = LEVELS[state.levelIdx];
+  const head = arrow.cells[arrow.cells.length - 1];
+  let r = head[0], c = head[1];
+  let d = arrow.dir;
+  const pathPoints = [{ r, c }];
+  const seen = new Set();
+
+  while (true) {
+    const [dr, dc] = DIRS[d];
+    r += dr;
+    c += dc;
+    if (r < 0 || r >= lvl.rows || c < 0 || c >= lvl.cols) {
+      pathPoints.push({ r, c, exit: true });
+      return { status: 'CLEAR', pathPoints, blocker: null };
+    }
+    const key = `${r},${c},${d}`;
+    if (seen.has(key)) {
+      return { status: 'BLOCKED', pathPoints, blocker: { type: 'LOOP', r, c } };
+    }
+    seen.add(key);
+
+    const gate = gatesList.find(g => g.r === r && g.c === c);
+    if (gate) {
+      pathPoints.push({ r, c });
+      return { status: 'BLOCKED', pathPoints, blocker: { type: 'GATE', r, c, gate } };
+    }
+
+    const ic = iceList.find(i => i.r === r && i.c === c);
+    if (ic) {
+      pathPoints.push({ r, c });
+      return { status: 'ICE', pathPoints, ice: ic };
+    }
+
+    const bmp = state.bumpers.find(b => b.r === r && b.c === c);
+    if (bmp) {
+      pathPoints.push({ r, c });
+      d = bmp.type === '/' ? REFLECT_SLASH[d] : REFLECT_BACK[d];
+      continue;
+    }
+
+    for (const other of arrowsList) {
+      if (other.cells.some(p => p[0] === r && p[1] === c)) {
+        pathPoints.push({ r, c });
+        return { status: 'BLOCKED', pathPoints, blocker: { type: 'ARROW', r, c, arrowId: other.id } };
+      }
+    }
+    pathPoints.push({ r, c });
+  }
+}
+
+function findValidHintMove() {
+  for (const a of state.arrows) {
+    const res = raycastArrow(a);
+    if (res.status === 'CLEAR' || res.status === 'ICE') return a.id;
+  }
+  return null;
+}
+
+function spawnParticles(x, y, color, count = 10) {
+  for (let i = 0; i < count; i++) {
+    const ang = (Math.PI * 2 * i) / count + Math.random() * 0.4;
+    const spd = 1.5 + Math.random() * 3;
+    state.animations.push({
+      type: 'particle',
+      x, y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      life: 1,
+      color
+    });
+  }
+}
+
+function fireArrow(arrowId) {
+  if (state.gameOver) return;
+  const idx = state.arrows.findIndex(a => a.id === arrowId);
+  if (idx === -1) return;
+  const arrow = state.arrows[idx];
+  const res = raycastArrow(arrow);
+  state.hintArrowId = null;
+
+  if (res.status === 'CLEAR') {
+    state.arrows.splice(idx, 1);
+    playClearSound(state.combo);
+    state.combo++;
+
+    // Fly-out animation along pathPoints
+    const pts = res.pathPoints.map(p => cellCenter(p.r, p.c));
+    state.animations.push({
+      type: 'fly',
+      pts,
+      color: PALETTE[arrow.color].stroke,
+      progress: 0
+    });
+
+    // Unlock matching gates if Key Arrow
+    if (arrow.keyFor) {
+      const unlocked = state.gates.filter(g => g.color === arrow.keyFor);
+      if (unlocked.length > 0) {
+        state.gates = state.gates.filter(g => g.color !== arrow.keyFor);
+        playUnlockSound();
+        unlocked.forEach(g => {
+          const c = cellCenter(g.r, g.c);
+          spawnParticles(c.x, c.y, PALETTE[g.color]?.stroke || '#0891b2', 12);
+        });
+      }
+    }
+
+    updateUI();
+    if (state.arrows.length === 0) {
+      setTimeout(handleWin, 320);
+    }
+  } else if (res.status === 'ICE') {
+    state.ice = state.ice.filter(i => !(i.r === res.ice.r && i.c === res.ice.c));
+    const c = cellCenter(res.ice.r, res.ice.c);
+    spawnParticles(c.x, c.y, '#38bdf8', 14);
+    playIceSound();
+    arrow.shakeUntil = performance.now() + 180;
+    updateUI();
+  } else {
+    // BLOCKED
+    arrow.shakeUntil = performance.now() + 300;
+    state.combo = 0;
+    state.mistakes++;
+    playErrorSound();
+    if (!state.zenMode) {
+      state.hearts--;
+      if (state.hearts <= 0) {
+        state.hearts = 0;
+        updateUI();
+        setTimeout(handleLose, 280);
+        return;
+      }
+    }
+    updateUI();
+  }
+}
+
+function handleWin() {
+  if (state.gameOver) return;
+  state.gameOver = true;
+  clearInterval(state.timerId);
+  const lvl = LEVELS[state.levelIdx];
+  state.completed[lvl.id] = true;
+  if (state.bestTimes[lvl.id] == null || state.elapsedSec < state.bestTimes[lvl.id]) {
+    state.bestTimes[lvl.id] = state.elapsedSec;
+  }
+  saveProgress();
+  playWinSound();
+  levelsClearedSinceAd++;
+  if (levelsClearedSinceAd >= 5 && window.AndroidAds && typeof window.AndroidAds.showInterstitial === 'function') {
+    levelsClearedSinceAd = 0;
+    window.AndroidAds.showInterstitial();
+  }
+
+  modalIcon.className = 'w-14 h-14 mx-auto mb-3 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl font-bold';
+  modalIcon.textContent = '✓';
+  modalTitle.textContent = lvl.id === 25 ? 'All 25 Levels Complete!' : `Level ${lvl.id} Cleared!`;
+  modalSub.textContent = `Solved in ${formatTime(state.elapsedSec)} with ${state.mistakes} mistake${state.mistakes === 1 ? '' : 's'}.`;
+  btnModalNext.classList.toggle('hidden', state.levelIdx >= LEVELS.length - 1);
+  overlayModal.classList.remove('hidden');
+  updateUI();
+}
+
+function handleLose() {
+  state.gameOver = true;
+  clearInterval(state.timerId);
+  modalIcon.className = 'w-14 h-14 mx-auto mb-3 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl font-bold';
+  modalIcon.textContent = '♥';
+  modalTitle.textContent = 'Out of Hearts!';
+  modalSub.textContent = 'Tip: Hold an arrow to trace its path before releasing, or toggle Zen Mode.';
+  btnModalNext.classList.add('hidden');
+  overlayModal.classList.remove('hidden');
+}
+
+// Hit testing
+function findArrowAt(px, py) {
+  const tol = layout.cell * 0.48;
+  for (const a of state.arrows) {
+    for (const [r, c] of a.cells) {
+      const ctr = cellCenter(r, c);
+      if (Math.hypot(px - ctr.x, py - ctr.y) <= tol) {
+        return a.id;
+      }
+    }
+  }
+  return null;
+}
+
+function getCanvasPoint(e) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (state.gameOver) return;
+  ensureAudio();
+  const pt = getCanvasPoint(e);
+  const aid = findArrowAt(pt.x, pt.y);
+  if (aid !== null) {
+    state.activeArrowId = aid;
+    state.pointerInsideArrow = true;
+    canvas.setPointerCapture(e.pointerId);
+    tracePill.style.opacity = '1';
+  }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (state.activeArrowId === null) return;
+  const pt = getCanvasPoint(e);
+  const hovered = findArrowAt(pt.x, pt.y);
+  state.pointerInsideArrow = (hovered === state.activeArrowId);
+  tracePill.textContent = state.pointerInsideArrow
+    ? 'Release to fire · Slide off to cancel'
+    : 'Release now to cancel';
+});
+
+function handlePointerEnd(e) {
+  if (state.activeArrowId === null) return;
+  const aid = state.activeArrowId;
+  const shouldFire = state.pointerInsideArrow;
+  state.activeArrowId = null;
+  state.pointerInsideArrow = false;
+  tracePill.style.opacity = '0';
+  tracePill.textContent = 'Hold to preview · Slide off to cancel';
+  if (shouldFire) fireArrow(aid);
+}
+
+canvas.addEventListener('pointerup', handlePointerEnd);
+canvas.addEventListener('pointercancel', () => {
+  state.activeArrowId = null;
+  state.pointerInsideArrow = false;
+  tracePill.style.opacity = '0';
+});
+
+// Drawing
+function drawArrowHead(x, y, dir, size, color) {
+  ctx.save();
+  ctx.translate(x, y);
+  const ang = { R: 0, D: Math.PI / 2, L: Math.PI, U: -Math.PI / 2 }[dir];
+  ctx.rotate(ang);
+  ctx.beginPath();
+  ctx.moveTo(size * 0.55, 0);
+  ctx.lineTo(-size * 0.4, -size * 0.45);
+  ctx.lineTo(-size * 0.2, 0);
+  ctx.lineTo(-size * 0.4, size * 0.45);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+function render(now) {
+  const { w, h, cell, rows, cols } = layout;
+  ctx.clearRect(0, 0, w, h);
+
+  // 1. Dotted / Grid background
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const ctr = cellCenter(r, c);
+      if (state.showGrid) {
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(ctr.x - cell / 2, ctr.y - cell / 2, cell, cell);
+      }
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(ctr.x, ctr.y, Math.max(2, cell * 0.055), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 2. Bumpers (/ and \)
+  for (const b of state.bumpers) {
+    const ctr = cellCenter(b.r, b.c);
+    const pad = cell * 0.3;
+    ctx.save();
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(ctr.x - cell * 0.38, ctr.y - cell * 0.38, cell * 0.76, cell * 0.76, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = Math.max(3, cell * 0.1);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (b.type === '/') {
+      ctx.moveTo(ctr.x - pad, ctr.y + pad);
+      ctx.lineTo(ctr.x + pad, ctr.y - pad);
+    } else {
+      ctx.moveTo(ctr.x - pad, ctr.y - pad);
+      ctx.lineTo(ctr.x + pad, ctr.y + pad);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 3. Color Gates
+  for (const g of state.gates) {
+    const ctr = cellCenter(g.r, g.c);
+    const col = PALETTE[g.color]?.stroke || '#0891b2';
+    ctx.save();
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.roundRect(ctr.x - cell * 0.36, ctr.y - cell * 0.36, cell * 0.72, cell * 0.72, 9);
+    ctx.fill();
+    // Lock icon
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ctr.x, ctr.y - cell * 0.05, cell * 0.12, Math.PI, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(ctr.x - cell * 0.15, ctr.y - cell * 0.04, cell * 0.3, cell * 0.22);
+    ctx.restore();
+  }
+
+  // 4. Cracked Ice Blocks
+  for (const ic of state.ice) {
+    const ctr = cellCenter(ic.r, ic.c);
+    ctx.save();
+    ctx.fillStyle = '#e0f2fe';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(ctr.x - cell * 0.37, ctr.y - cell * 0.37, cell * 0.74, cell * 0.74, 9);
+    ctx.fill();
+    ctx.stroke();
+    // Crack lines
+    ctx.strokeStyle = '#0284c7';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(ctr.x - cell * 0.2, ctr.y - cell * 0.18);
+    ctx.lineTo(ctr.x + cell * 0.02, ctr.y);
+    ctx.lineTo(ctr.x - cell * 0.08, ctr.y + cell * 0.18);
+    ctx.moveTo(ctr.x + cell * 0.02, ctr.y);
+    ctx.lineTo(ctr.x + cell * 0.22, ctr.y + cell * 0.08);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 5. Hold-to-Trace Laser Preview
+  let blockedArrowId = null;
+  if (state.activeArrowId !== null && state.pointerInsideArrow) {
+    const active = state.arrows.find(a => a.id === state.activeArrowId);
+    if (active) {
+      const res = raycastArrow(active);
+      if (res.blocker?.type === 'ARROW') blockedArrowId = res.blocker.arrowId;
+      const lineColor = res.status === 'CLEAR' ? '#10b981' : (res.status === 'ICE' ? '#0ea5e9' : '#f43f5e');
+      ctx.save();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = Math.max(2.5, cell * 0.08);
+      ctx.setLineDash([6, 5]);
+      ctx.lineDashOffset = -(now * 0.04) % 22;
+      ctx.beginPath();
+      res.pathPoints.forEach((p, i) => {
+        const pt = cellCenter(p.r, p.c);
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 6. Arrows
+  for (const a of state.arrows) {
+    const isSelected = a.id === state.activeArrowId && state.pointerInsideArrow;
+    const isHint = a.id === state.hintArrowId;
+    const isBlocker = a.id === blockedArrowId;
+    const stroke = isBlocker ? '#e11d48' : (PALETTE[a.color]?.stroke || '#4f46e5');
+    const shakeX = a.shakeUntil > now ? Math.sin(now * 0.09) * 5 : 0;
+
+    ctx.save();
+    ctx.translate(shakeX, 0);
+
+    if (isSelected || isHint) {
+      ctx.shadowColor = isHint ? 'rgba(79,70,229,0.55)' : PALETTE[a.color].glow;
+      ctx.shadowBlur = isHint ? 14 + Math.sin(now * 0.008) * 6 : 12;
+    }
+
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(4, cell * (isSelected ? 0.16 : 0.13));
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    a.cells.forEach(([r, c], idx) => {
+      const pt = cellCenter(r, c);
+      if (idx === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+
+    // Head
+    const head = a.cells[a.cells.length - 1];
+    const headPt = cellCenter(head[0], head[1]);
+    drawArrowHead(headPt.x, headPt.y, a.dir, cell * 0.34, stroke);
+
+    // Key Diamond Badge on tail if keyFor
+    if (a.keyFor) {
+      const tail = a.cells[0];
+      const tailPt = cellCenter(tail[0], tail[1]);
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const s = cell * 0.16;
+      ctx.moveTo(tailPt.x, tailPt.y - s);
+      ctx.lineTo(tailPt.x + s, tailPt.y);
+      ctx.lineTo(tailPt.x, tailPt.y + s);
+      ctx.lineTo(tailPt.x - s, tailPt.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // 7. Animations (fly & particles)
+  for (let i = state.animations.length - 1; i >= 0; i--) {
+    const anim = state.animations[i];
+    if (anim.type === 'fly') {
+      anim.progress += 0.09;
+      if (anim.progress >= 1) {
+        state.animations.splice(i, 1);
+        continue;
+      }
+      const total = anim.pts.length - 1;
+      const segFloat = anim.progress * total;
+      const segIdx = Math.min(total - 1, Math.floor(segFloat));
+      const t = segFloat - segIdx;
+      const p0 = anim.pts[segIdx], p1 = anim.pts[segIdx + 1];
+      const x = p0.x + (p1.x - p0.x) * t;
+      const y = p0.y + (p1.y - p0.y) * t;
+      ctx.save();
+      ctx.globalAlpha = 1 - anim.progress * 0.7;
+      ctx.fillStyle = anim.color;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.max(4, cell * 0.13), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (anim.type === 'particle') {
+      anim.x += anim.vx;
+      anim.y += anim.vy;
+      anim.life -= 0.045;
+      if (anim.life <= 0) {
+        state.animations.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = anim.life;
+      ctx.fillStyle = anim.color;
+      ctx.beginPath();
+      ctx.arc(anim.x, anim.y, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+
+// Level Selector Modal
+function openLevelsModal() {
+  levelsList.innerHTML = '';
+  for (let ch = 1; ch <= 5; ch++) {
+    const chInfo = CHAPTERS[ch];
+    const chLevels = LEVELS.filter(l => l.chapter === ch);
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="flex items-baseline justify-between mb-2">
+        <span class="text-xs font-extrabold uppercase tracking-wider text-indigo-600">Chapter ${ch}: ${chInfo.name}</span>
+        <span class="text-[11px] text-slate-400">${chInfo.desc}</span>
+      </div>
+      <div class="grid grid-cols-5 gap-2">
+        ${chLevels.map(l => {
+          const isCur = LEVELS[state.levelIdx].id === l.id;
+          const isDone = !!state.completed[l.id];
+          return `<button data-lvl="${l.id - 1}" class="lvl-btn py-2.5 rounded-xl border text-center transition active:scale-95 ${
+            isCur ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-sm'
+            : isDone ? 'bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold'
+            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 font-medium'
+          }">
+            <div class="text-sm leading-none">${l.id}</div>
+            <div class="text-[10px] mt-0.5 opacity-75">${isDone ? '✓' : l.difficulty[0]}</div>
+          </button>`;
+        }).join('')}
+      </div>
+    `;
+    levelsList.appendChild(wrap);
+  }
+  levelsModal.classList.remove('hidden');
+}
+
+levelsList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.lvl-btn');
+  if (!btn) return;
+  loadLevel(Number(btn.dataset.lvl));
+  levelsModal.classList.add('hidden');
+});
+
+// Controls
+btnLevels.addEventListener('click', openLevelsModal);
+btnCloseLevels.addEventListener('click', () => levelsModal.classList.add('hidden'));
+levelsModal.addEventListener('click', (e) => { if (e.target === levelsModal) levelsModal.classList.add('hidden'); });
+
+btnZen.addEventListener('click', () => {
+  state.zenMode = !state.zenMode;
+  btnZen.textContent = state.zenMode ? 'Zen: On' : 'Zen: Off';
+  btnZen.className = state.zenMode
+    ? 'px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 shadow-sm text-xs font-semibold text-emerald-700 hover:bg-emerald-100 active:scale-95 transition'
+    : 'px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm text-xs font-semibold text-slate-600 hover:bg-slate-100 active:scale-95 transition';
+  updateUI();
+});
+
+btnMute.addEventListener('click', () => {
+  isMuted = !isMuted;
+  iconSoundOn.classList.toggle('hidden', isMuted);
+  iconSoundOff.classList.toggle('hidden', !isMuted);
+});
+
+btnGrid.addEventListener('click', () => {
+  state.showGrid = !state.showGrid;
+  updateUI();
+});
+
+btnHint.addEventListener('click', () => {
+  if (window.AndroidAds && typeof window.AndroidAds.showRewardedHint === 'function') {
+    window.AndroidAds.showRewardedHint();
+  } else {
+    window.onAdRewarded('hint');
+  }
+});
+
+btnRestart.addEventListener('click', () => loadLevel(state.levelIdx));
+btnPrev.addEventListener('click', () => { if (state.levelIdx > 0) loadLevel(state.levelIdx - 1); });
+btnNext.addEventListener('click', () => { if (state.levelIdx < LEVELS.length - 1) loadLevel(state.levelIdx + 1); });
+btnModalRetry.addEventListener('click', () => loadLevel(state.levelIdx));
+btnModalNext.addEventListener('click', () => {
+  if (state.levelIdx < LEVELS.length - 1) loadLevel(state.levelIdx + 1);
+});
+
+window.addEventListener('resize', resizeCanvas);
+window.onload = async () => {
+  try {
+    const res = await fetch('./levels_500.json');
+    LEVELS = await res.json();
+    loadLevel(0);
+    requestAnimationFrame(render);
+  } catch (err) {
+    tipText.textContent = 'Failed to load levels_500.json: ' + err.message;
+  }
+};
+</script>
+</body>
+</html>
